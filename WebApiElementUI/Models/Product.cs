@@ -15,7 +15,10 @@ namespace WebApiElementUI.Models
         public int? Code { get; set; }
         public string? Name { get; set; }
         public string? Description { get; set; }
-        public DateTime? SalesStartDate { get; set; }
-        public string? Image { get; set; }
+        public DateTime? SalesStartDate { get; set; }        
+
+        [Required]
+        [MaxLength(Int32.MaxValue)]
+        public byte[] Image { get; set; }
     }
 }

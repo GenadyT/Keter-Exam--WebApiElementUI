@@ -30,58 +30,34 @@ namespace WebApiElementUI2.Controllers
         }
 
         [EnableCors("WelcomePolicy")]
-        // GET: api/Products/5
-        [HttpGet("{id}")]
-        public async Task<ActionResult<Product>> GetProduct(int id)
+        // GET: api/GetProductImage/5
+        [HttpGet("GetProductImage/{code}")]
+        public async Task<ActionResult<MemoryStream>> GetProductImage(int code)
         {
-            var product = await _context.Products.FindAsync(id);
+            var product = await _context.Products.FindAsync(code);
 
             if (product == null)
             {
                 return NotFound();
             }
-
-            return product;
-        }
-
-        [EnableCors("WelcomePolicy")]
-        // GET: api/Product image
-        //[Route("GetProductImage")]
-        [HttpGet("GetProductImage/{image}")]
-        public async Task<ActionResult<Product>> GetProductImage(string image)
-        {
-            string imagePath = "ProductImages/" + image;
-
-            if (System.IO.File.Exists(imagePath))
-            {
-                return File(System.IO.File.OpenRead(imagePath), "application/octet-stream", Path.GetFileName(imagePath));
-            }
-            return NotFound();
-
-            ////var product = await _context.Products.FindAsync(id);
-            ////var product = new ActionResult<Product>()
-            //Product product = null;
-
-            //if (product == null)
-            //{
-            //    return NotFound();
-            //}
-
-            //return product;
-        }
+            
+            MemoryStream stream = new MemoryStream(product.Image);            
+            return Ok(stream);
+        }        
 
         [EnableCors("WelcomePolicy")]
         // PUT: api/Products/5
         // To protect from overposting attacks, see https://go.microsoft.com/fwlink/?linkid=2123754
         [HttpPut("{code:int}")]
-        public async Task<IActionResult> PutProduct(int code, Product product)
+        public async Task<IActionResult> PutProduct(int code, [FromForm] ProductInput productInput)
         {
-            if (code != product.Code)
+            if (code != productInput.Code)
             {
                 return BadRequest();
             }
 
-            _context.Entry(product).State = EntityState.Modified;
+            Product product = null;
+            saveChangesPrepare(productInput, ref product, _context);
 
             try
             {
@@ -102,12 +78,33 @@ namespace WebApiElementUI2.Controllers
             return NoContent();
         }
 
+        private void saveChangesPrepare(ProductInput productInput, ref Product product, ProductContext context)
+        {            
+            bool dummiedImage = false;
+            if (((Microsoft.AspNetCore.Http.FormFile)productInput.Image).FileName.Contains("dummyFile"))
+            {
+                dummiedImage = true;                
+            }
+
+            product = ByInputProduct(productInput, dummiedImage);
+
+            var entry = context.Entry(product);
+            entry.State = EntityState.Modified;
+            if (dummiedImage)
+            {
+                entry.Property("Image").IsModified = false;
+            }
+        }
+
         [EnableCors("WelcomePolicy")]
         // POST: api/Products
         // To protect from overposting attacks, see https://go.microsoft.com/fwlink/?linkid=2123754
         [HttpPost]
-        public async Task<ActionResult<Product>> PostProduct(Product product)
+        public async Task<ActionResult<Product>> PostProduct([FromForm] ProductInput productInput)
         {
+            Product product = null;
+            saveChangesPrepare(productInput, ref product, _context);
+
             try
             {
                 product.Code = null;
@@ -143,6 +140,26 @@ namespace WebApiElementUI2.Controllers
         private bool ProductExists(int id)
         {
             return _context.Products.Any(e => e.Code == id);
+        }
+
+        private Product ByInputProduct(ProductInput productInput, bool dummiedImage)
+        {
+            Product product = new Product();
+            product.Code = productInput.Code;
+            product.Name = productInput.Name;
+            product.Description = productInput.Description;
+            product.SalesStartDate = productInput.SalesStartDate;
+
+            if(!dummiedImage)
+            {
+                using var fileStream = productInput.Image.OpenReadStream();
+                long length = productInput.Image.Length;
+                byte[] bytes = new byte[length];
+                fileStream.Read(bytes, 0, (int)productInput.Image.Length);
+                product.Image = bytes;
+            }
+
+            return product;
         }
     }
 }
